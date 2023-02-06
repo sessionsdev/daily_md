@@ -4,37 +4,13 @@ import argparse
 import configparser
 from datetime import datetime
 import re
-from typing import List, Tuple
+from typing import List, Tuple, Callable
 
 config = configparser.ConfigParser()
 config.read('config.ini')
 
-file_path = config['DEFAULT']['file_path']
-# date_format = config['DEFAULT']['date_format']
-date_format: str = "%Y-%m-%d %A"
-today: datetime = datetime.now().strftime(date_format)
-
-
-def wildcard_to_date_regex(pattern: str) -> str:
-    pattern = pattern.replace("*", ".*")
-    pattern = pattern.replace("-", "-")
-    pattern = pattern.replace(" ", "\\ ")
-    pattern = re.escape(pattern)
-    validate_pattern(pattern)
-    return f"^{pattern}$"
-
-def validate_pattern(pattern):
-    date_format = "2023-01-01 Monday"
-    compiled_pattern = re.compile(pattern.replace("*", "[\w-]+"))
-    match = compiled_pattern.search(date_format)
-    if match:
-        print("MATCH")
-        return True
-    else:
-        print("NO MATCH")
-        return False
-
-
+FILEPATH = config['DEFAULT']['file_path']
+today: datetime = datetime.now().strftime("%Y-%m-%d %A")
 
 
 def create_today_header(lines: List[str] = None) -> List[str]:
@@ -66,14 +42,31 @@ def get_section_indices(lines: List[str], header_index: int) -> Tuple[int, int]:
     return (header_index, next_header_index-1 if next_header_index else len(lines)-1)
 
 
-def append_todo(lines: List[str], text: str) -> None:
-    indexs: Tuple(int, int) = get_section_indices(
-        lines, get_or_create_today_header_index(lines))
-    todo_item: str = f'- [ ] {text}\n'
-    if indexs[0] == indexs[1]:
-        lines.insert(indexs[1]+1, todo_item)
-    else:
-        lines.insert(indexs[1], todo_item)
+def print_all_tasks(lines: List[str]) -> None:
+    incomplete_str = "- [ ]"
+    incomplete_todos = []
+
+    for line in lines:
+        if line.startswith(incomplete_str):
+            incomplete_todos.append(line)
+    
+    print("----------------------")
+    print("TASKS ({} total)".format(len(incomplete_todos)))
+    print("----------------------")
+    for i, todo in enumerate(incomplete_todos, start=1):
+        print("{}. {}".format(i, todo))
+
+def migrate_tasks(lines: List[str]) -> List[str]:
+    migrated_tasks = []
+    
+    for i in range(len(lines)):
+        if lines[i].startswith("- [ ]"):
+            migrated_tasks.append(lines[i])
+            lines[i] = lines[i].replace("- [ ]", "- [>]")
+    
+    lines.append(migrated_tasks)
+    return lines
+
 
 
 def print_section(lines: List[str], start: int, end: int) -> str:
@@ -96,119 +89,75 @@ def print_date_sections(lines: List[str], date_pattern: str = today) -> None:
         print("".join(section), end=separator)
 
 
-def append_log(lines: List[str], text: str) -> None:
-    header = get_or_create_today_header_index(lines)
-    log_item = f'- {text}\n'
-    index = lines.index(header)
-    lines.insert(index + 1, log_item)
+def append_text_today(lines: List[str], text: str) -> None:
+    indexs: Tuple(int, int) = get_section_indices(
+        lines, get_or_create_today_header_index(lines))
+    lines.insert(indexs[1]+1, text)
+    return lines
 
 
-def log_entry(args):
-    print("Logging entry:", args.log)
 
+def process_file(line_processor: Callable, file_path=FILEPATH, mode='r+', *args, **kwargs):
+    """
+    Process a file line by line using a `line_processor` function.
+    
+    Arguments:
+        line_processor: A function that takes a line as input and returns a modified line.
+        file_path: The path to the file (default is `FILEPATH`).
+        mode: The mode in which the file should be opened (default is 'r+').
+        *args: Additional positional arguments to pass to `line_processor`.
+        **kwargs: Additional keyword arguments to pass to `line_processor`.
+    
+    Returns:
+        The processed lines as a list of strings.
+    """
+    try:
+        with open(file_path, mode) as f:
+            lines = f.readlines()
+            lines = line_processor(lines, *args, **kwargs)
+            if lines is not None:
+                f.seek(0)
+                f.write(''.join(lines))
+    except FileNotFoundError:
+        raise FileNotFoundError(f"File not found: {file_path}")
+    except PermissionError:
+        raise PermissionError(f"Permission denied: {file_path}")
 
-def add_todo(args):
-    print("Adding to-do item:", args.todo)
+def py_daily_parser():
+    parser = argparse.ArgumentParser(description='py-daily CLI utility')
 
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('-p', '--print', choices=['todo', 'log'], help='print todo tasks or logs')
+    group.add_argument('command', nargs='?', help='add a todo task or a log')
+    parser.add_argument('value', nargs='?', help='description of the todo task or log')
 
-def migrate(args):
-    print("Migrating past uncompleted to-do items to today's section")
+    args = parser.parse_args()
 
+    if args.print:
+        # user provided -p or --print
+        if args.print == 'todo':
+            process_file(print_all_tasks)
+        elif args.print == 'log':
+            pass
 
-def mark_complete(args):
-    print("Marking item as complete:", args.complete)
+    elif args.command:
+        text_value = args.value
 
-
-def print_argument(args):
-    print("PRINTING ---------------------")
-    if args.print is None:
-        print("No argument was passed")
+        # user provided command
+        if args.command == 'todo':
+            todo_item: str = f'- [ ] {text_value}\n'
+            print("Adding to-do item:", todo_item)
+            process_file(append_text_today, text=todo_item)
+        elif args.command == 'log':
+            log_item = f'- {text_value}\n'
+            print("Logging entry:", log_item)
+            process_file(append_text_today, text=log_item)
+        elif args.command == 'migrate':
+            process_file(migrate_tasks)
+        else:
+            print(process_file(print_date_sections, date_pattern=args.command))
     else:
-        print("Printing argument:", args.print)
+        process_file(print_date_sections, date_pattern=today)
 
-def process_file(file_path = None, line_processor = None, *args, **kwargs):
-    if file_path is None or line_processor is None:
-        raise ValueError("Filepath and line processor function required.")
-
-    with open(file_path, 'r+') as f:
-        lines = f.readlines()
-        lines = line_processor(lines, *args, **kwargs)
-        if lines is not None:
-            f.seek(0)
-            f.write(''.join(lines))
-
-
-parser = argparse.ArgumentParser(description='py-daily CLI utility')
-
-group = parser.add_mutually_exclusive_group()
-group.add_argument('-p', '--print', choices=['todo', 'log'], help='print todo tasks or logs')
-group.add_argument('command', nargs='?', help='add a todo task or a log')
-parser.add_argument('value', nargs='?', help='description of the todo task or log')
-
-args = parser.parse_args()
-
-if args.print:
-    # user provided -p or --print
-    print("Printing {}".format(args.print))
-elif args.command:
-    # user provided command
-    if args.command == 'todo':
-        # add a todo task with description args.value
-        print("Adding todo task: {}".format(args.value))
-    elif args.command == 'log':
-        # add a log with description args.value
-        print("Adding log: {}".format(args.value))
-    else:
-        print("IN ARGS COMMAND")
-        print(args.command)
-        print(process_file(file_path, print_date_sections, date_pattern=args.command))
-else:
-    # no command or flag provided, default action
-    print(wildcard_to_date_regex(today))
-    print("No command or flag provided, performing default action")
-
-
-
-
-
-
-
-# parser = argparse.ArgumentParser(description="display_help")
-
-# group = parser.add_mutually_exclusive_group()
-# group.add_argument("-l", "--log", help="Log an entry")
-# group.add_argument("-t", "--todo", help="Add a to-do item")
-# group.add_argument("-m", "--migrate", action="store_true",
-#                    help="Migrate past uncompleted todo items to today's section")
-# group.add_argument("-c", "--complete", help="Mark an item as complete")
-
-# parser.add_argument("-p", "--print", help="Print an argument", nargs="?", required=False)
-
-
-# args = parser.parse_args()
-
-# commands = {
-#     'log': log_entry,
-#     'todo': add_todo,
-#     'migrate': migrate,
-#     'complete': mark_complete,
-#     'print': print_argument,
-# }
-
-# for key in commands.keys():
-#     print(key)
-#     print(args)
-
-#     if getattr(args, key):
-#         commands[key](args)
-#         break
-
-# with open(file_path, 'r+') as f:
-#     lines = f.readlines()
-#     if args.date_pattern:
-#         print_date_sections(lines, args.date_pattern)
-#     else:
-#         print_date_sections(lines, today)
-#     f.seek(0)
-#     f.write(''.join(lines))
-
+if __name__ == "__main__":
+    py_daily_parser()
