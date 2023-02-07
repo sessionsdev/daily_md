@@ -66,3 +66,21 @@
 - [x] buy more cheese powder
 - [x] send CN invoices to Kim
 - [x] send CN tax form to kristen.
+- test
+- test
+
+# 2023-02-07 Tuesday
+
+- [ ] test_indexing
+- [ ] test_indexing
+- [ ] test_indexing
+- [ ] test_indexing
+- [ ] test_indexing
+- [ ] test_indexing
+- [ ] test_indexing
+- [ ] test_indexing
+- [ ] test_indexing
+- [ ] test_indexing
+- [ ] test_indexing
+- [ ] test_indexing
+- [ ] test_indexing

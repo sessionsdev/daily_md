@@ -7,6 +7,8 @@ import re
 from typing import List, Tuple, Callable
 import shutil
 import os
+import pickle
+import time
 
 config = configparser.ConfigParser()
 config.read('config.ini')
@@ -15,26 +17,84 @@ FILEPATH = config['DEFAULT']['file_path']
 today: datetime = datetime.now().strftime("%Y-%m-%d %A")
 
 
-def create_today_header(lines: List[str] = None) -> List[str]:
-    lines: List[str] = lines or []
+class BackupAndIndexFile:
+    def __init__(self, filepath: str, num_backups: int = 10):
+        self.filepath = filepath
+        self.num_backups = num_backups
+
+        self.backups_dir = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), 'backups')
+
+    def handle_backups(self):
+        """
+        This function handles backups of the file specified by the 'filepath' attribute of the class instance. 
+        The backups are stored in a directory specified by the 'backups_dir' attribute of the class instance.
+        The number of backups to keep is specified by the 'num_backups' attribute of the class instance.
+
+        Returns:
+            None
+        """
+        timestamp = str(int(time.time()))
+
+        if not os.path.exists(self.backups_dir):
+            os.makedirs(self.backups_dir)
+
+        shutil.copy(self.filepath, os.path.join(self.backups_dir,
+                    os.path.basename(self.filepath) + '.' + timestamp))
+
+        backups = [f for f in os.listdir(self.backups_dir) if f.startswith(
+            os.path.basename(self.filepath) + '.')]
+
+        backups.sort(key=lambda x: int(x.split('.')[-1]), reverse=True)
+
+        for backup in backups[self.num_backups:]:
+            os.remove(os.path.join(self.backups_dir, backup))
+
+    def index_file(self, lines: List[str]):
+        section_indices = {}
+
+        # Loop through the lines to find the section headers and store the indices
+        start_index = None
+        for i, line in enumerate(lines):
+            if line.startswith("#"):
+                if start_index is not None:
+                    section_indices[previous_date] = (start_index, i - 1)
+                start_index = i
+                previous_date = line[2:12]
+
+        section_indices[previous_date] = (start_index, i)
+
+        with open("section_indices.pickle", "wb") as f:
+            pickle.dump(section_indices, f)
+
+    def load_index(self):
+        section_indices = {}
+        with open("section_indices.pickle", "rb") as f:
+            section_indices = pickle.load(f)
+        return section_indices
+
+
+bai = BackupAndIndexFile(FILEPATH)
+
+
+def insert_todays_header(lines: List[str]) -> List[str]:
     header: str = f'# {today}\n'
     if not any(line.startswith(header) for line in lines):
         lines.append("\n" + header + "\n")
     return lines
 
 
-def get_or_create_today_header_index(lines: List[str] = None) -> int:
-    lines = lines or []
+def get_or_create_today_header_index(lines: List[str]) -> int:
     header = f'# {today}\n'
     for index, line in enumerate(lines):
         if line.startswith(header):
             return index
-    lines = create_today_header(lines)
+    lines = insert_todays_header(lines)
     return len(lines) - 1
 
 
 def get_section_indices(lines: List[str], header_index: int) -> Tuple[int, int]:
-    next_header_index: int = 0
+    next_header_index: int = None
 
     for i, line in enumerate(lines[header_index+1:], start=header_index+1):
         if line.startswith("#"):
@@ -42,6 +102,13 @@ def get_section_indices(lines: List[str], header_index: int) -> Tuple[int, int]:
             break
 
     return (header_index, next_header_index-1 if next_header_index else len(lines)-1)
+
+
+def print_header(header_text):
+    header_length = len(header_text) + 8
+    print("+" + "-" * header_length + "+")
+    print("|    " + header_text + "    |")
+    print("+" + "-" * header_length + "+")
 
 
 def print_all_tasks(lines: List[str]) -> None:
@@ -52,9 +119,7 @@ def print_all_tasks(lines: List[str]) -> None:
         if line.startswith(incomplete_str):
             incomplete_tasks.append(line)
 
-    print("----------------------")
-    print("TASKS ({} total)".format(len(incomplete_tasks)))
-    print("----------------------")
+    print_header("TASKS ({} total)".format(len(incomplete_tasks)))
     for i, task in enumerate(incomplete_tasks, start=1):
         print("{}) {}".format(i, task.replace("- [ ]", "")), end="")
 
@@ -62,34 +127,42 @@ def print_all_tasks(lines: List[str]) -> None:
 def gather_incomplete_task_indices(lines: List[str]) -> List[int]:
     return [index for index, line in enumerate(lines) if line.startswith("- [ ]")]
 
+
 def print_task_list(lines: List[str], indices: List[int]):
+    print_header("TASK LIST")
     for task_num, task_index in enumerate(indices, start=1):
         task = lines[task_index].replace("- [ ]", "")
-        print(f"{task_num}) {task}")
+        print(f" {task_num}) {task}")
+
 
 def complete_tasks(lines: List[str]) -> List[str]:
     incomplete_indices = gather_incomplete_task_indices(lines)
-    task_num_to_index = {task_num: task_index for task_num, task_index in enumerate(incomplete_indices, start=1)}
-
+    task_num = 1
     while incomplete_indices:
         print_task_list(lines, incomplete_indices)
-        user_input = input("Enter the number of the task item you want to complete (or 'q' to quit): ")
+        user_input = input(
+            "Enter the number of the task item you want to complete (or 'q' to quit): ")
 
         if user_input.lower() == 'q':
             break
 
         try:
-            task_num = int(user_input)
-            task_index = task_num_to_index[task_num]
-        except (ValueError, KeyError):
-            print("Invalid input. Please enter a number between 1 and {} or 'q' to quit.".format(len(incomplete_indices)))
+            selected_task_num = int(user_input)
+        except ValueError:
+            print("Invalid input. Please enter a number between 1 and {} or 'q' to quit.".format(
+                len(incomplete_indices)))
             continue
 
+        if selected_task_num not in range(1, len(incomplete_indices) + 1):
+            print("Invalid input. Please enter a number between 1 and {} or 'q' to quit.".format(
+                len(incomplete_indices)))
+            continue
+
+        task_index = incomplete_indices[selected_task_num - 1]
         task = lines[task_index].replace("- [ ]", "- [x]")
         lines[task_index] = task
-        print(f"Task completed: {task}")
-
         incomplete_indices = gather_incomplete_task_indices(lines)
+        task_num += 1
 
     return lines
 
@@ -117,10 +190,6 @@ def migrate_tasks(lines: List[str]) -> List[str]:
     lines[section_indices[1]+1:section_indices[1]+1] = items_to_move
 
     return lines
-
-
-# def print_section(lines: List[str], start: int, end: int) -> str:
-#     return ''.join(lines[start:end])
 
 
 def find_matching_date_indices(date_pattern: str, lines: List[str]) -> List[Tuple[int, int]]:
@@ -171,6 +240,8 @@ def process_file(line_processor: Callable, file_path=FILEPATH, mode='r+', *args,
             if lines is not None:
                 f.seek(0)
                 f.write(''.join(lines))
+                bai.index_file(lines)
+                bai.handle_backups()
     except Exception as e:
         shutil.copy2(backup_file_path, file_path)  # Restore the backup
         os.remove(backup_file_path)  # Delete the backup file
@@ -185,7 +256,7 @@ def py_daily_parser():
 
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
-        '-p', '--print', choices=['task', 'log'], help='print task tasks or logs')
+        '-p', '--print', choices=['task', 'log'], nargs=1, help='print task tasks or logs')
     group.add_argument('command', nargs='?', help='add a task task or a log')
     parser.add_argument('value', nargs='?',
                         help='description of the task task or log')
@@ -222,3 +293,8 @@ def py_daily_parser():
 
 if __name__ == "__main__":
     py_daily_parser()
+
+    section_indices = bai.load_index()
+
+    # Print the section indices
+    print(section_indices)
