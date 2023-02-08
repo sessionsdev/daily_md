@@ -1,3 +1,4 @@
 *.pickle
 *.bak
 /backups/*.md.*
+/env
