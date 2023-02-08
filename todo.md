@@ -72,24 +72,8 @@
 # 2023-02-07 Tuesday
 
 - [ ] test_indexing
-- [ ] test_indexing
-- [ ] test_indexing
-- [ ] test_indexing
-- [ ] test_indexing
-- [ ] test_indexing
-- [ ] test_indexing
-- [ ] test_indexing
-- [ ] test_indexing
-- [ ] test_indexing
-- [ ] test_indexing
-- [ ] test_indexing
-- [ ] test_indexing
-- test
-- test
-- [ ] test test
-
-- [ ] test test
 
 - [ ] test
 - [ ] test
-- [ ] test test test
+- [ ] test
+- [ ] test

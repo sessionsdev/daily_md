@@ -6,7 +6,9 @@ import os
 import pickle
 import re
 import shutil
+import sys
 import time
+import logging
 from datetime import datetime
 from typing import Callable, List, Pattern, Tuple
 
@@ -25,19 +27,43 @@ class FileProcessor:
         )
         self.num_backups = int(config["DEFAULT"].get("num_backups_to_keep", 10))
         self.date_index_filename = config["DEFAULT"]["date_index_filename"]
-        self.lines = self.load_and_index_file()
+        self.lines = []
+        self.date_indices = {}
+
+        self.load_and_index_file()
 
     def load_and_index_file(self):
         try:
-            # shutil.copy2(self.file_path, f"{self.file_path}.bak")
             with open(self.file_path, "r") as f:
                 lines = f.readlines()
+        except FileNotFoundError as e:
+            print(f"File not found: {self.file_path}")
+            sys.exit(1)
+        except PermissionError as e:
+            print(f"Permission denied: {self.file_path}")
+            sys.exit(1)
+        except IsADirectoryError as e:
+            print(f"{self.file_path} is a directory, not a file.")
+            sys.exit(1)
+        except IOError as e:
+            print(f"An error occurred while reading the file: {e}")
+            sys.exit(1)
         except Exception as e:
-            raise e
+            print(f"An unexpected error occurred: {e}")
+            sys.exit(1)
 
         if self.is_updated():
             self.index_file(lines)
-        return lines
+        else:
+            self.load_date_index()
+        self.lines = lines
+
+    def load_date_index(self):
+        try:
+            with open(self.date_index_filename, "rb") as f:
+                self.date_indices = pickle.load(f)
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Index file '{self.date_index_filename}' not found")
 
     def is_updated(self):
         if not os.path.exists(self.date_index_filename):
@@ -47,21 +73,31 @@ class FileProcessor:
         )
 
     def index_file(self, lines: List[str]):
+        """
+        Given a list of strings `lines`, this function indexes the file with date headers and
+        returns a dictionary of the indices of each section. The first line must start with "#".
+        Raises a `ValueError` if the input is not a list of strings or if the first line does not start with "#".
+        """
+        if not lines or not lines[0].startswith("#"):
+            raise ValueError("The first line must start with '#'")
+
         section_indices = {}
 
         # Loop through the lines to find the section headers and store the indices
-        start_index = None
-        for i, line in enumerate(lines):
+        section_start_index = 0
+        previous_date = lines[0][2:12]
+        for i, line in enumerate(lines[1:], 1):
             if line.startswith("#"):
-                if start_index is not None:
-                    section_indices[previous_date] = (start_index, i - 1)
-                start_index = i
+                section_indices[previous_date] = (section_start_index, i - 1)
+                section_start_index = i
                 previous_date = line[2:12]
 
-        section_indices[previous_date] = (start_index, i)
+        section_indices[previous_date] = (section_start_index, i)
 
         with open(self.date_index_filename, "wb") as f:
-            pickle.dump(section_indices, f)
+            pickle.dump(section_indices, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+        self.date_indices = section_indices
 
     def backup_file(self):
         """
@@ -92,11 +128,10 @@ class FileProcessor:
 
         backups.sort(key=lambda x: int(x.split(".")[-1]), reverse=True)
 
-        for backup in backups[self.num_backups :]:
+        for backup in backups[self.num_backups:]:
             os.remove(os.path.join(self.backups_dir, backup))
 
     def process_file(self, line_processor: Callable, *args, **kwargs):
-        print(self.lines)
         processed_lines = line_processor(self.lines, *args, **kwargs)
         if processed_lines is not None:
             self.backup_file()
@@ -134,7 +169,7 @@ def get_or_create_today_header_index(lines: List[str]) -> int:
 def get_section_indices(lines: List[str], header_index: int) -> Tuple[int, int]:
     next_header_index: int = None
 
-    for i, line in enumerate(lines[header_index + 1 :], start=header_index + 1):
+    for i, line in enumerate(lines[header_index + 1:], start=header_index + 1):
         if line.startswith("#"):
             next_header_index = i
             break
@@ -150,7 +185,6 @@ def print_header(header_text):
 
 
 def print_all_tasks(lines: List[str]) -> None:
-
     incomplete_str = "- [ ]"
     incomplete_tasks = []
 
@@ -233,13 +267,13 @@ def migrate_tasks(lines: List[str]) -> List[str]:
             items_to_move.append(line)
             lines[i] = line.replace("- [ ]", "- [>]")
 
-    lines[section_today[1] + 1 : section_today[1] + 1] = items_to_move
+    lines[section_today[1] + 1: section_today[1] + 1] = items_to_move
 
     return lines
 
 
 def find_matching_date_indices(
-    date_pattern: str, lines: List[str]
+        date_pattern: str, lines: List[str]
 ) -> List[Tuple[int, int]]:
     pattern: Pattern[str] = re.compile(f'# {date_pattern.replace("*", "[0-9]+")}')
     print(f"PATTERN: {pattern}")
@@ -253,7 +287,7 @@ def print_date_sections(lines: List[str], date_pattern: str = today) -> None:
     separator = "\n-----------------------------------------\n"
     print(separator, end="")
     for start, end in section_indices:
-        section = lines[start : end + 1]
+        section = lines[start: end + 1]
         print("".join(section), end=separator)
 
 
@@ -265,96 +299,89 @@ def append_text_today(lines: List[str], text: str) -> list[str]:
     return lines
 
 
-# def process_file(
-#     line_processor: Callable, file_path=FILEPATH, mode="r+", *args, **kwargs
-# ):
-#     """
-#     Process a file line by line using a `line_processor` function.
-#
-#     Arguments:
-#         line_processor: A function that takes a line as input and returns a modified line.
-#         file_path: The path to the file (default is `FILEPATH`).
-#         mode: The mode in which the file should be opened (default is 'r+').
-#         *args: Additional positional arguments to pass to `line_processor`.
-#         **kwargs: Additional keyword arguments to pass to `line_processor`.
-#
-#     Returns:
-#         The processed lines as a list of strings.
-#     """
-#     backup_file_path = file_path + ".bak"
-#     try:
-#         # Create a backup of the file
-#         shutil.copy2(file_path, backup_file_path)
-#         with open(file_path, mode) as f:
-#             lines = f.readlines()
-#             lines = line_processor(lines, *args, **kwargs)
-#             if lines is not None:
-#                 f.seek(0)
-#                 f.write("".join(lines))
-#                 bai.index_file(lines)
-#                 bai.backup_file()
-#     except Exception as e:
-#         shutil.copy2(backup_file_path, file_path)  # Restore the backup
-#         os.remove(backup_file_path)  # Delete the backup file
-#         raise e  # Raise the original exception
-#     else:
-#         # Delete the backup file if no exception was raised
-#         os.remove(backup_file_path)
-
-
-def py_daily_parser(file_processor):
-    command_task = "task"
-    command_log = "log"
-
-    parser = argparse.ArgumentParser(description="py-daily CLI utility")
-
+def py_daily_parser(file_processor=None):
+    parser = argparse.ArgumentParser(description='Process some options.')
     group = parser.add_mutually_exclusive_group()
-    group.add_argument(
-        "-p",
-        "--print",
-        choices=[command_task, command_log],
-        nargs="?",
-        help="print task tasks or logs",
-    )
-    group.add_argument("command", nargs="?", help="add a task task or a log")
-    parser.add_argument("value", nargs="?", help="description of the task task or log")
+    group.add_argument('-l', '--log', dest='log', help='Log an entry')
+    group.add_argument('-t', '--todo', dest='todo', help='Add a to-do item')
+    group.add_argument('-m', '--migrate', dest='migrate', action='store_true', help='Migrate past uncompleted todo items to today\'s section')
+    group.add_argument('-c', '--complete', dest='complete', help='Mark an item as complete')
+    group.add_argument('-p', '--print', dest='print', help='Print an argument', nargs=1)
 
     args = parser.parse_args()
     print(args)
 
-    if args.print:
-        print(args.print)
-        # user provided -p or --print
-        if args.print == 'task':
-            print("PRINTING TASKS")
-            file_processor.process_file(print_all_tasks)
-        elif args.print == command_log:
-            pass
-
-    elif args.command:
-        text_value = args.value
-
-        # user provided command
-        if args.command == command_task:
-            task_item: str = f"- [ ] {text_value}\n"
-            print("Adding to-do item:", task_item)
-            file_processor.process_file(append_text_today, text=task_item)
-        elif args.command == "log":
-            log_item = f"- {text_value}\n"
-            print("Logging entry:", log_item)
-            file_processor.process_file(append_text_today, text=log_item)
-        elif args.command == "migrate":
-            # process_file(migrate_tasks)
-            file_processor.process_file(complete_tasks)
-        else:
-            print(
-                file_processor.process_file(
-                    print_date_sections, date_pattern=args.command
-                )
-            )
+    if args.log:
+        # Handle the -l or --log option with argument "some text"
+        print(f"Log entry: {args.log}")
+    elif args.todo:
+        # Handle the -t or --todo option with argument "some text"
+        print(f"To-do item: {args.todo}")
+    elif args.migrate:
+        # Handle the -m or --migrate option
+        print("Migrating past uncompleted to-do items to today's section.")
+    elif args.complete:
+        # Handle the -c or --complete option with argument "some text"
+        print(f"Marking item as complete: {args.complete}")
+    elif args.print is not None:
+        # Handle the -p or --print option with argument "some text"
+        print(f"Print argument: {args.print}")
     else:
-        file_processor.process_file(print_date_sections, date_pattern=today)
+        # Handle the -h or --help option
+        print("Displaying help message.")
+
+    # task = "task"
+    # log = "log"
+    # migrate = "migrate"
+    #
+    # parser = argparse.ArgumentParser(description="py-daily CLI utility")
+    #
+    # group = parser.add_mutually_exclusive_group()
+    # group.add_argument(
+    #     "-p",
+    #     "--print",
+    #     choices=[task, log],
+    #     nargs="?",
+    #     help="print task tasks or logs",
+    # )
+    # group.add_argument("command", nargs="?", help="add a task task or a log")
+    # parser.add_argument("value", nargs="?", help="description of the task task or log")
+    #
+    # args = parser.parse_args()
+    # print(args)
+    #
+    # if args.print:
+    #     print(args.print)
+    #     # user provided -p or --print
+    #     if args.print == task:
+    #         print("PRINTING TASKS")
+    #         file_processor.process_file(print_all_tasks)
+    #     elif args.print == log:
+    #         pass
+    #
+    # elif args.command:
+    #     text_value = args.value
+    #
+    #     # user provided command
+    #     if args.command == task:
+    #         task_item: str = f"- [ ] {text_value}\n"
+    #         print("Adding to-do item:", task_item)
+    #         file_processor.process_file(append_text_today, text=task_item)
+    #     elif args.command == log:
+    #         log_item = f"- {text_value}\n"
+    #         print("Logging entry:", log_item)
+    #         file_processor.process_file(append_text_today, text=log_item)
+    #     elif args.command == migrate:
+    #         file_processor.process_file(migrate_tasks)
+    #     else:
+    #         print(
+    #             file_processor.process_file(
+    #                 print_date_sections, date_pattern=args.command
+    #             )
+    #         )
+    # else:
+    #     file_processor.process_file(print_date_sections, date_pattern=today)
 
 
 if __name__ == "__main__":
-    py_daily_parser(file_processor=FileProcessor())
+    py_daily_parser()
