@@ -72,8 +72,10 @@
 # 2023-02-07 Tuesday
 
 - [ ] test_indexing
+- [ ] test
+- [ ] test
+- [ ] test
+- [ ] test
 
-- [ ] test
-- [ ] test
-- [ ] test
-- [ ] test
+# 2023-02-09 Thursday 
+

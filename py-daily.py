@@ -10,9 +10,10 @@ import sys
 import time
 import logging
 from datetime import datetime
-from typing import Callable, List, Pattern, Tuple
+from typing import Callable, List, Pattern, Tuple, Dict, Union
 
-today: str = datetime.now().strftime("%Y-%m-%d %A")
+today_full_date: str = datetime.now().strftime("%Y-%m-%d %A")
+today: str = datetime.now().strftime("%Y-%m-%d")
 
 
 class FileProcessor:
@@ -28,11 +29,13 @@ class FileProcessor:
         self.num_backups = int(config["DEFAULT"].get("num_backups_to_keep", 10))
         self.date_index_filename = config["DEFAULT"]["date_index_filename"]
         self.lines = []
-        self.date_indices = {}
+        self.date_indexes = {}
 
-        self.load_and_index_file()
+        print("INIT FILE PROCESSOR")
+        self._load_and_index_file()
 
-    def load_and_index_file(self):
+    def _load_and_index_file(self):
+        print("LOADING AND INDEXING FILE")
         try:
             with open(self.file_path, "r") as f:
                 lines = f.readlines()
@@ -52,32 +55,54 @@ class FileProcessor:
             print(f"An unexpected error occurred: {e}")
             sys.exit(1)
 
-        if self.is_updated():
-            self.index_file(lines)
+        if self._is_updated():
+            print("IS UPDATED!!!!")
+            print("FILE MTIME")
+            print(os.path.getmtime(self.file_path))
+            print("INDEX MTIME")
+            print(os.path.getmtime(self.date_index_filename))
+            self._index_file(lines)
         else:
-            self.load_date_index()
+            print("IS NOT UPDATED!!!!")
+            print("FILE MTIME")
+            print(os.path.getmtime(self.file_path))
+            print("INDEX MTIME")
+            print(os.path.getmtime(self.date_index_filename))
+            self._load_date_index()
         self.lines = lines
 
-    def load_date_index(self):
+    def _load_date_index(self):
         try:
             with open(self.date_index_filename, "rb") as f:
-                self.date_indices = pickle.load(f)
+                self.date_indexes = pickle.load(f)
         except FileNotFoundError:
-            raise FileNotFoundError(f"Index file '{self.date_index_filename}' not found")
+            raise FileNotFoundError(
+                f"Index file '{self.date_index_filename}' not found"
+            )
 
-    def is_updated(self):
+    def _is_updated(self):
         if not os.path.exists(self.date_index_filename):
             return True
         return os.path.getmtime(self.file_path) > os.path.getmtime(
             self.date_index_filename
         )
 
-    def index_file(self, lines: List[str]):
+    def _index_file(self, lines: List[str]):
         """
-        Given a list of strings `lines`, this function indexes the file with date headers and
-        returns a dictionary of the indices of each section. The first line must start with "#".
-        Raises a `ValueError` if the input is not a list of strings or if the first line does not start with "#".
+        Indexes a file with date headers and returns a dictionary of the indices of each section. The first line must
+        start with "#". The indexed data is stored in a pickle file with the name `self.date_index_filename`.
+
+        Args:
+        lines (List[str]): A list of strings representing the lines of the file.
+
+        Returns:
+        None
+
+        Raises:
+        ValueError: If the input is not a list of strings or if the first line does not start with "#".
         """
+        print("INDEXING FILE........")
+
         if not lines or not lines[0].startswith("#"):
             raise ValueError("The first line must start with '#'")
 
@@ -86,7 +111,9 @@ class FileProcessor:
         # Loop through the lines to find the section headers and store the indices
         section_start_index = 0
         previous_date = lines[0][2:12]
-        for i, line in enumerate(lines[1:], 1):
+        for i, line in enumerate(lines):
+            if not line or not line.strip():
+                continue
             if line.startswith("#"):
                 section_indices[previous_date] = (section_start_index, i - 1)
                 section_start_index = i
@@ -94,12 +121,16 @@ class FileProcessor:
 
         section_indices[previous_date] = (section_start_index, i)
 
-        with open(self.date_index_filename, "wb") as f:
-            pickle.dump(section_indices, f, protocol=pickle.HIGHEST_PROTOCOL)
+        with open(self.date_index_filename, "wb") as file_object:
+            pickle.dump(section_indices, file_object, protocol=pickle.HIGHEST_PROTOCOL)
 
-        self.date_indices = section_indices
+        print("===========================================================")
+        print(section_indices)
+        print("===========================================================")
 
-    def backup_file(self):
+        self.date_indexes = section_indices
+
+    def _backup_file(self):
         """
         This function handles backups of the file specified by the 'filepath' attribute of the class instance.
         The backups are stored in a directory specified by the 'backups_dir' attribute of the class instance.
@@ -128,18 +159,23 @@ class FileProcessor:
 
         backups.sort(key=lambda x: int(x.split(".")[-1]), reverse=True)
 
-        for backup in backups[self.num_backups:]:
+        for backup in backups[self.num_backups :]:
             os.remove(os.path.join(self.backups_dir, backup))
 
-    def process_file(self, line_processor: Callable, *args, **kwargs):
+    def process_file(
+        self,
+        line_processor: Callable[[List[str], Tuple, Dict], Union[List[str], None]],
+        *args,
+        **kwargs,
+    ):
         processed_lines = line_processor(self.lines, *args, **kwargs)
         if processed_lines is not None:
-            self.backup_file()
+            self._backup_file()
             try:
                 with open(self.file_path, "w") as f:
                     f.seek(0)
                     f.write("".join(processed_lines))
-                    self.index_file(processed_lines)
+                self._index_file(processed_lines)
             except Exception as e:
                 most_recent_backup = max(
                     os.listdir(self.backups_dir), key=lambda x: os.path.getctime(x)
@@ -151,14 +187,16 @@ class FileProcessor:
 
 
 def insert_header_today(lines: List[str]) -> List[str]:
-    header: str = f"# {today}\n"
-    if not any(line.startswith(header) for line in lines):
-        lines.append("\n" + header + "\n")
+    header: str = f"# {today_full_date}"
+    if not lines or lines[-1].strip():
+        lines.append("\n")
+    lines.append(header + " \n")
+    lines.append("\n")
     return lines
 
 
 def get_or_create_today_header_index(lines: List[str]) -> int:
-    header = f"# {today}\n"
+    header = f"# {today_full_date}\n"
     for index, line in enumerate(lines):
         if line.startswith(header):
             return index
@@ -169,7 +207,7 @@ def get_or_create_today_header_index(lines: List[str]) -> int:
 def get_section_indices(lines: List[str], header_index: int) -> Tuple[int, int]:
     next_header_index: int = None
 
-    for i, line in enumerate(lines[header_index + 1:], start=header_index + 1):
+    for i, line in enumerate(lines[header_index + 1 :], start=header_index + 1):
         if line.startswith("#"):
             next_header_index = i
             break
@@ -267,55 +305,126 @@ def migrate_tasks(lines: List[str]) -> List[str]:
             items_to_move.append(line)
             lines[i] = line.replace("- [ ]", "- [>]")
 
-    lines[section_today[1] + 1: section_today[1] + 1] = items_to_move
+    lines[section_today[1] + 1 : section_today[1] + 1] = items_to_move
 
     return lines
 
 
 def find_matching_date_indices(
-        date_pattern: str, lines: List[str]
+    date_pattern: str, lines: List[str]
 ) -> List[Tuple[int, int]]:
     pattern: Pattern[str] = re.compile(f'# {date_pattern.replace("*", "[0-9]+")}')
     print(f"PATTERN: {pattern}")
     return tuple(i for i, line in enumerate(lines) if pattern.match(line))
 
 
-def print_date_sections(lines: List[str], date_pattern: str = today) -> None:
-    indices = find_matching_date_indices(date_pattern, lines)
-    section_indices = [get_section_indices(lines, index) for index in indices]
-
+def print_date_section(lines: List[str], indices: Tuple[int, int]) -> None:
     separator = "\n-----------------------------------------\n"
     print(separator, end="")
-    for start, end in section_indices:
-        section = lines[start: end + 1]
-        print("".join(section), end=separator)
+    for line in lines[indices[0] : indices[1]]:
+        print(line, end="")
+    print(separator)
 
 
-def append_text_today(lines: List[str], text: str) -> list[str]:
-    indexes: Tuple[int, int] = get_section_indices(
-        lines, get_or_create_today_header_index(lines)
-    )
-    lines.insert(indexes[1] + 1, text)
-    return lines
+def append_text_today(lines: List[str], date_indexes: dict, text: str) -> list[str] or None:
+    today_indexes = date_indexes.get(today)
+    print(date_indexes)
+    print(today)
+    print(today_indexes)
+    if today_indexes:
+        lines.insert(today_indexes[1] + 1, text)
+        return lines
+    else:
+        return None
 
 
-def py_daily_parser(file_processor=None):
-    parser = argparse.ArgumentParser(description='Process some options.')
+def handle_todo_args(todo_args, file_processor):
+    print("HANDLE TODO ARGS")
+    todo = f"- {todo_args}\n"
+    file_processor.process_file(append_text_today, date_indexes=file_processor.date_indexes, text=todo)
+
+
+def handle_print_args(print_args, file_processor):
+    date_indices = file_processor.date_indexes
+    today_sliced = today[:10]
+
+    if print_args == "default":
+        if not date_indices.get(today_sliced):
+            print("Today's header not yet create.  Creating now...")
+            file_processor.process_file(insert_header_today)
+            print("Done creating today's header.")
+            return
+
+        print_date_section(file_processor.lines, date_indices.get(today))
+    else:
+        date_pattern = expand_date_pattern(print_args) or None
+        if date_pattern is None:
+            return
+
+        for date in date_indices.keys():
+            if re.match(date_pattern, date) is not None:
+                print_date_section(file_processor.lines, date_indices.get(date))
+
+
+def expand_date_pattern(pattern):
+    year_pattern = r"(?P<year>\d{4})"
+    month_pattern = r"(?P<month>\d{2})"
+    day_pattern = r"(?P<day>\d{2})"
+
+    year_wildcard = "*"
+    month_wildcard = "*"
+    day_wildcard = "*"
+
+    # split pattern into parts
+    parts = pattern.split("-")
+
+    # replace year wildcard with regex pattern
+    if len(parts) >= 1 and parts[0] != year_wildcard:
+        parts[0] = year_pattern
+    if len(parts) >= 2 and parts[1] == month_wildcard:
+        parts[1] = month_pattern
+    if len(parts) >= 3 and parts[2] == day_wildcard:
+        parts[2] = day_pattern
+
+    # join parts back into a single string
+    pattern = "-".join(parts)
+
+    # return complete regex pattern
+    return f"^{pattern}$"
+
+
+
+def py_daily_parser(file_processor):
+    parser = argparse.ArgumentParser(description="Process some options.")
     group = parser.add_mutually_exclusive_group()
-    group.add_argument('-l', '--log', dest='log', help='Log an entry')
-    group.add_argument('-t', '--todo', dest='todo', help='Add a to-do item')
-    group.add_argument('-m', '--migrate', dest='migrate', action='store_true', help='Migrate past uncompleted todo items to today\'s section')
-    group.add_argument('-c', '--complete', dest='complete', help='Mark an item as complete')
-    group.add_argument('-p', '--print', dest='print', help='Print an argument', nargs=1)
+    group.add_argument("-l", "--log", dest="log", help="Log an entry")
+    group.add_argument("-t", "--todo", dest="todo", help="Add a to-do item")
+    group.add_argument(
+        "-m",
+        "--migrate",
+        dest="migrate",
+        action="store_true",
+        help="Migrate past uncompleted todo items to today's section",
+    )
+    group.add_argument(
+        "-c", "--complete", dest="complete", help="Mark an item as complete"
+    )
+    parser.add_argument(
+        "-p",
+        "--print",
+        dest="print",
+        help="Print an argument",
+        nargs="?",
+        const="default",
+    )
 
     args = parser.parse_args()
-    print(args)
 
     if args.log:
         # Handle the -l or --log option with argument "some text"
         print(f"Log entry: {args.log}")
     elif args.todo:
-        # Handle the -t or --todo option with argument "some text"
+        handle_todo_args(args.todo, file_processor)
         print(f"To-do item: {args.todo}")
     elif args.migrate:
         # Handle the -m or --migrate option
@@ -323,9 +432,8 @@ def py_daily_parser(file_processor=None):
     elif args.complete:
         # Handle the -c or --complete option with argument "some text"
         print(f"Marking item as complete: {args.complete}")
-    elif args.print is not None:
-        # Handle the -p or --print option with argument "some text"
-        print(f"Print argument: {args.print}")
+    elif args.print:
+        handle_print_args(print_args=args.print, file_processor=file_processor)
     else:
         # Handle the -h or --help option
         print("Displaying help message.")
@@ -384,4 +492,4 @@ def py_daily_parser(file_processor=None):
 
 
 if __name__ == "__main__":
-    py_daily_parser()
+    py_daily_parser(FileProcessor())
