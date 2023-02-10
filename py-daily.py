@@ -27,11 +27,10 @@ class FileProcessor:
             config["DEFAULT"]["backup_file_path"],
         )
         self.num_backups = int(config["DEFAULT"].get("num_backups_to_keep", 10))
-        self.date_index_filename = config["DEFAULT"]["date_index_filename"]
+        self.indexes_filename = config["DEFAULT"]["date_index_filename"]
         self.lines = []
-        self.date_indexes = {}
+        self.indexes = {}
 
-        print("INIT FILE PROCESSOR")
         self._load_and_index_file()
 
     def _load_and_index_file(self):
@@ -56,35 +55,25 @@ class FileProcessor:
             sys.exit(1)
 
         if self._is_updated():
-            print("IS UPDATED!!!!")
-            print("FILE MTIME")
-            print(os.path.getmtime(self.file_path))
-            print("INDEX MTIME")
-            print(os.path.getmtime(self.date_index_filename))
             self._index_file(lines)
         else:
-            print("IS NOT UPDATED!!!!")
-            print("FILE MTIME")
-            print(os.path.getmtime(self.file_path))
-            print("INDEX MTIME")
-            print(os.path.getmtime(self.date_index_filename))
-            self._load_date_index()
+            self._load_indexes()
         self.lines = lines
 
-    def _load_date_index(self):
+    def _load_indexes(self):
         try:
-            with open(self.date_index_filename, "rb") as f:
-                self.date_indexes = pickle.load(f)
+            with open(self.indexes_filename, "rb") as f:
+                self.indexes = pickle.load(f)
         except FileNotFoundError:
             raise FileNotFoundError(
-                f"Index file '{self.date_index_filename}' not found"
+                f"Index file '{self.indexes_filename}' not found"
             )
 
     def _is_updated(self):
-        if not os.path.exists(self.date_index_filename):
+        if not os.path.exists(self.indexes_filename):
             return True
         return os.path.getmtime(self.file_path) > os.path.getmtime(
-            self.date_index_filename
+            self.indexes_filename
         )
 
     def _index_file(self, lines: List[str]):
@@ -106,7 +95,10 @@ class FileProcessor:
         if not lines or not lines[0].startswith("#"):
             raise ValueError("The first line must start with '#'")
 
-        section_indices = {}
+        indexes = {
+            "date_indexes": {},
+            "incomplete_task_indexes": []
+        }
 
         # Loop through the lines to find the section headers and store the indices
         section_start_index = 0
@@ -115,20 +107,18 @@ class FileProcessor:
             if not line or not line.strip():
                 continue
             if line.startswith("#"):
-                section_indices[previous_date] = (section_start_index, i - 1)
+                indexes["date_indexes"][previous_date] = (section_start_index, i - 1)
                 section_start_index = i
                 previous_date = line[2:12]
+            if line.startswith("- [ ]"):
+                indexes["incomplete_task_indexes"].append(i)
 
-        section_indices[previous_date] = (section_start_index, i)
+        indexes["date_indexes"][previous_date] = (section_start_index, i)
 
-        with open(self.date_index_filename, "wb") as file_object:
-            pickle.dump(section_indices, file_object, protocol=pickle.HIGHEST_PROTOCOL)
+        with open(self.indexes_filename, "wb") as file_object:
+            pickle.dump(indexes, file_object, protocol=pickle.HIGHEST_PROTOCOL)
 
-        print("===========================================================")
-        print(section_indices)
-        print("===========================================================")
-
-        self.date_indexes = section_indices
+        self.indexes = indexes
 
     def _backup_file(self):
         """
@@ -310,13 +300,6 @@ def migrate_tasks(lines: List[str]) -> List[str]:
     return lines
 
 
-def find_matching_date_indices(
-    date_pattern: str, lines: List[str]
-) -> List[Tuple[int, int]]:
-    pattern: Pattern[str] = re.compile(f'# {date_pattern.replace("*", "[0-9]+")}')
-    print(f"PATTERN: {pattern}")
-    return tuple(i for i, line in enumerate(lines) if pattern.match(line))
-
 
 def print_date_section(lines: List[str], indices: Tuple[int, int]) -> None:
     separator = "\n-----------------------------------------\n"
@@ -326,11 +309,8 @@ def print_date_section(lines: List[str], indices: Tuple[int, int]) -> None:
     print(separator)
 
 
-def append_text_today(lines: List[str], date_indexes: dict, text: str) -> list[str] or None:
+def append_text_today(lines: List[str], date_indexes: dict[str, Tuple[int, int]], text: str) -> list[str] or None:
     today_indexes = date_indexes.get(today)
-    print(date_indexes)
-    print(today)
-    print(today_indexes)
     if today_indexes:
         lines.insert(today_indexes[1] + 1, text)
         return lines
@@ -340,30 +320,35 @@ def append_text_today(lines: List[str], date_indexes: dict, text: str) -> list[s
 
 def handle_todo_args(todo_args, file_processor):
     print("HANDLE TODO ARGS")
-    todo = f"- {todo_args}\n"
-    file_processor.process_file(append_text_today, date_indexes=file_processor.date_indexes, text=todo)
+    todo = f"- [ ] {todo_args}\n"
+    file_processor.process_file(append_text_today, date_indexes=file_processor.indexes["date_indexes"], text=todo)
+
+def handle_log_args(log_args, file_processor):
+    print("HANDLE LOG ARGS")
+    log = f"- {log_args}\n"
+    file_processor.process_file(append_text_today, date_indexes=file_processor.indexes["date_indexes"], text=log)
 
 
 def handle_print_args(print_args, file_processor):
-    date_indices = file_processor.date_indexes
+    date_indexes = file_processor.indexes["date_indexes"]
     today_sliced = today[:10]
 
     if print_args == "default":
-        if not date_indices.get(today_sliced):
+        if not date_indexes.get(today_sliced):
             print("Today's header not yet create.  Creating now...")
             file_processor.process_file(insert_header_today)
             print("Done creating today's header.")
             return
 
-        print_date_section(file_processor.lines, date_indices.get(today))
+        print_date_section(file_processor.lines, date_indexes.get(today))
     else:
         date_pattern = expand_date_pattern(print_args) or None
         if date_pattern is None:
             return
 
-        for date in date_indices.keys():
+        for date in date_indexes.keys():
             if re.match(date_pattern, date) is not None:
-                print_date_section(file_processor.lines, date_indices.get(date))
+                print_date_section(file_processor.lines, date_indexes.get(date))
 
 
 def expand_date_pattern(pattern):
@@ -412,6 +397,7 @@ def py_daily_parser(file_processor):
     parser.add_argument(
         "-p",
         "--print",
+        type=str,
         dest="print",
         help="Print an argument",
         nargs="?",
@@ -421,11 +407,11 @@ def py_daily_parser(file_processor):
     args = parser.parse_args()
 
     if args.log:
-        # Handle the -l or --log option with argument "some text"
-        print(f"Log entry: {args.log}")
+        # Handle the -l option
+        handle_log_args(args.log, file_processor)
     elif args.todo:
+        # Handle the -t option
         handle_todo_args(args.todo, file_processor)
-        print(f"To-do item: {args.todo}")
     elif args.migrate:
         # Handle the -m or --migrate option
         print("Migrating past uncompleted to-do items to today's section.")
@@ -433,6 +419,7 @@ def py_daily_parser(file_processor):
         # Handle the -c or --complete option with argument "some text"
         print(f"Marking item as complete: {args.complete}")
     elif args.print:
+        print("Displaying help message.")
         handle_print_args(print_args=args.print, file_processor=file_processor)
     else:
         # Handle the -h or --help option
