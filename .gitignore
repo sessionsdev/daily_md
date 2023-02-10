@@ -2,3 +2,5 @@
 *.bak
 /backups/*.md.*
 /env
+.idea
+*.pyc
