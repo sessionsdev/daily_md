@@ -8,7 +8,7 @@ import time
 import logging
 from datetime import datetime
 from typing import Callable, List, Pattern, Tuple, Dict, Union
-from py_daily import file_processor
+from py_daily import file_processor, constants
 
 today_full_date: str = datetime.now().strftime("%Y-%m-%d %A")
 today: str = datetime.now().strftime("%Y-%m-%d")
@@ -75,44 +75,6 @@ def print_task_list(lines: List[str], indices: List[int]):
         print(f" {task_num}) {task}")
 
 
-def complete_tasks(lines: List[str]) -> List[str]:
-    incomplete_indices = gather_incomplete_task_indices(lines)
-    task_num = 1
-    while incomplete_indices:
-        print_task_list(lines, incomplete_indices)
-        user_input = input(
-            "Enter the number of the task item you want to complete (or 'q' to quit): "
-        )
-
-        if user_input.lower() == "q":
-            break
-
-        try:
-            selected_task_num = int(user_input)
-        except ValueError:
-            print(
-                "Invalid input. Please enter a number between 1 and {} or 'q' to quit.".format(
-                    len(incomplete_indices)
-                )
-            )
-            continue
-
-        if selected_task_num not in range(1, len(incomplete_indices) + 1):
-            print(
-                "Invalid input. Please enter a number between 1 and {} or 'q' to quit.".format(
-                    len(incomplete_indices)
-                )
-            )
-            continue
-
-        task_index = incomplete_indices[selected_task_num - 1]
-        task = lines[task_index].replace("- [ ]", "- [x]")
-        lines[task_index] = task
-        incomplete_indices = gather_incomplete_task_indices(lines)
-        task_num += 1
-
-    return lines
-
 
 def migrate_tasks(lines: List[str]) -> List[str]:
     """
@@ -147,10 +109,10 @@ def print_date_section(lines: List[str], indices: Tuple[int, int]) -> None:
     print(separator)
 
 
-def append_text_today(lines: List[str], date_indexes: dict[str, Tuple[int, int]], text: str) -> list[str] or None:
-    today_indexes = date_indexes.get(today)
-    if today_indexes:
-        lines.insert(today_indexes[1] + 1, text)
+def append_text_today(lines: List[str], text: str) -> list[str] or None:
+    index_today_end = fp.indexes.get(constants.DATE_INDEXES_KEY).get(today)[1]
+    if index_today_end:
+        lines.insert(index_today_end + 1, text)
         return lines
     else:
         return None
@@ -158,12 +120,12 @@ def append_text_today(lines: List[str], date_indexes: dict[str, Tuple[int, int]]
 
 def handle_todo_args(todo_args):
     todo = f"- [ ] {todo_args}\n"
-    fp.process_file(append_text_today, date_indexes=fp.indexes["date_indexes"], text=todo)
+    fp.process_file(append_text_today, text=todo)
 
 
 def handle_log_args(log_args):
     log = f"- {log_args}\n"
-    fp.process_file(append_text_today, date_indexes=fp.indexes["date_indexes"], text=log)
+    fp.process_file(append_text_today, text=log)
 
 
 def handle_print_args(print_args):

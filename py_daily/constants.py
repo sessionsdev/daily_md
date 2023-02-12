@@ -1,0 +1,5 @@
+TODO = "- [ ]"
+COMPLETED_TODO = "- [x]"
+MIGRATED_TODO = "- [>]"
+DATE_INDEXES_KEY = "date_indexes"
+TASK_INDEXES_KEY = "incomplete_task_indexes"

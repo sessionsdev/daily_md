@@ -61,13 +61,7 @@
 
 # 2023-02-06 Monday
 
-- [x] send CN invoices to Kim
-- [x] buy more cheese powder
-- [x] buy more cheese powder
-- [x] send CN invoices to Kim
-- [x] send CN tax form to kristen.
-- test
-- test
+
 
 # 2023-02-07 Tuesday
 
@@ -84,18 +78,42 @@
 - [ ] test
 - [ ] test
 - [ ] test
-- [ ] test
-- [ ] test
-- test
-- [ ] test
-- [ ] test
+- The text is derived from Latin, but does not have any coherent meaning in itself.
+- The use of placeholder text can be useful in design because it allows the designer to focus on the visual aspects of the layout without getting distracted by the content.
+
 
 # 2023-02-10 Friday 
 
+- The text is derived from Latin, but does not have any coherent meaning in itself.
+- The use of placeholder text can be useful in design because it allows the designer to focus on the visual aspects of the layout without getting distracted by the content.
 - [ ] test
 - [ ] test
+  psum dolor sit amet, consectetur adipiscing elit. Fusce ut orci metus.
+  Sed vitae leo
+
+# 2023-02-11 Saturday 
+
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Fusce ut orci metus. 
+Sed vitae leo dolor. Nulla fermentum sem eu nunc suscipit fringilla. Proin faucibus 
+euismod quam, eu lacinia massa laoreet at. Quisque auctor lorem vel felis bibendum, 
+ac vestibulum ex tristique. Donec ut consectetur purus. Duis vulputate ex a 
+mi porta suscipit.
+
+Some key points to note about this text:
+
+- Lorem ipsum is a placeholder text commonly used in design and publishing to demonstrate the visual layout of a page or document.
+- The text is derived from Latin, but does not have any coherent meaning in itself.
+- The use of placeholder text can be useful in design because it allows the designer to focus on the visual aspects of the layout without getting distracted by the content.
+- However, it's important to remember that real content will eventually need to be inserted, and that the layout may need to be adjusted accordingly.- [ ] test
 - [ ] test
-- [ ] test
-- [ ] test
-- [ ] test
-- [ ] test
+- [ ] test test 123
+- [ ] test test 123
+- [ ] test test 123
+
+
+- [ ] test test 123
+- [ ] test test 123
+- [ ] test test 123
+
+# 2023-02-12 Sunday 
+

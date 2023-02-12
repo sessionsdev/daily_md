@@ -5,9 +5,11 @@ import shutil
 import sys
 import time
 from typing import List, Callable, Tuple, Dict, Union
+from py_daily import constants
 
 
 class FileProcessor:
+
     def __init__(self) -> None:
         config = configparser.ConfigParser()
         config.read("config.ini")
@@ -20,11 +22,11 @@ class FileProcessor:
         self.indexes_filename = config["DEFAULT"]["date_index_filename"]
         self.lines = []
         self.indexes = {}
+        self.is_save_index = config["DEFAULT"]["save_index"]
 
         self._load_and_index_file()
 
     def _load_and_index_file(self):
-        print("LOADING AND INDEXING FILE")
         try:
             with open(self.file_path, "r") as f:
                 lines = f.readlines()
@@ -44,11 +46,12 @@ class FileProcessor:
             print(f"An unexpected error occurred: {e}")
             sys.exit(1)
 
-        if self._is_updated():
-            self._index_file(lines)
-        else:
-            self._load_indexes()
-        self.lines = lines
+        if self.is_save_index:
+            if self._is_updated():
+                self._index_file(lines)
+            else:
+                self._load_indexes()
+            self.lines = lines
 
     def _load_indexes(self):
         try:
@@ -80,14 +83,12 @@ class FileProcessor:
         Raises:
         ValueError: If the input is not a list of strings or if the first line does not start with "#".
         """
-        print("INDEXING FILE........")
-
         if not lines or not lines[0].startswith("#"):
             raise ValueError("The first line must start with '#'")
 
         indexes = {
-            "date_indexes": {},
-            "incomplete_task_indexes": []
+            constants.DATE_INDEXES_KEY: {},
+            constants.TASK_INDEXES_KEY: []
         }
 
         # Loop through the lines to find the section headers and store the indices
@@ -97,16 +98,17 @@ class FileProcessor:
             if not line or not line.strip():
                 continue
             if line.startswith("#"):
-                indexes["date_indexes"][previous_date] = (section_start_index, i - 1)
+                indexes[constants.DATE_INDEXES_KEY][previous_date] = (section_start_index, i - 1)
                 section_start_index = i
                 previous_date = line[2:12]
-            if line.startswith("- [ ]"):
-                indexes["incomplete_task_indexes"].append(i)
+            if line.startswith(constants.TODO):
+                indexes[constants.TASK_INDEXES_KEY].append(i)
 
-        indexes["date_indexes"][previous_date] = (section_start_index, i)
+        indexes[constants.DATE_INDEXES_KEY][previous_date] = (section_start_index, i)
 
-        with open(self.indexes_filename, "wb") as file_object:
-            pickle.dump(indexes, file_object, protocol=pickle.HIGHEST_PROTOCOL)
+        if self.is_save_index:
+            with open(self.indexes_filename, "wb") as file_object:
+                pickle.dump(indexes, file_object, protocol=pickle.HIGHEST_PROTOCOL)
 
         self.indexes = indexes
 
@@ -142,9 +144,15 @@ class FileProcessor:
         for backup in backups[self.num_backups:]:
             os.remove(os.path.join(self.backups_dir, backup))
 
+    def get_date_indexes(self):
+        return self.indexes.get(constants.DATE_INDEXES_KEY) or {}
+
+    def get_task_indexes(self):
+        return self.indexes.get(constants.TASK_INDEXES_KEY) or {}
+
     def process_file(
             self,
-            line_processor: Callable[[List[str], Tuple, Dict], Union[List[str], None]],
+            line_processor: Callable,
             *args,
             **kwargs,
     ):
