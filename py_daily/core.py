@@ -110,7 +110,7 @@ def print_date_section(lines: List[str], indices: Tuple[int, int]) -> None:
 
 
 def append_text_today(lines: List[str], text: str) -> list[str] or None:
-    index_today_end = fp.indexes.get(constants.DATE_INDEXES_KEY).get(today)[1]
+    index_today_end = fp._indexes.get(constants.DATE_INDEXES_KEY).get(today)[1]
     if index_today_end:
         lines.insert(index_today_end + 1, text)
         return lines
@@ -129,7 +129,7 @@ def handle_log_args(log_args):
 
 
 def handle_print_args(print_args):
-    date_indexes = fp.indexes["date_indexes"]
+    date_indexes = fp._indexes["date_indexes"]
     today_sliced = today[:10]
 
     if print_args == "default":
@@ -139,7 +139,7 @@ def handle_print_args(print_args):
             print("Done creating today's header.")
             return
 
-        print_date_section(fp.lines, date_indexes.get(today))
+        print_date_section(fp._lines, date_indexes.get(today))
     else:
         date_pattern = expand_date_pattern(print_args) or None
         if date_pattern is None:
@@ -147,7 +147,7 @@ def handle_print_args(print_args):
 
         for date in date_indexes.keys():
             if re.match(date_pattern, date) is not None:
-                print_date_section(fp.lines, date_indexes.get(date))
+                print_date_section(fp._lines, date_indexes.get(date))
 
 
 def expand_date_pattern(pattern):

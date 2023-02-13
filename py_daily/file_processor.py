@@ -4,40 +4,49 @@ import pickle
 import shutil
 import sys
 import time
-from typing import List, Callable, Tuple, Dict, Union
+from typing import List, Callable
 from py_daily import constants
 
 
 class FileProcessor:
-
     def __init__(self) -> None:
         config = configparser.ConfigParser()
         config.read("config.ini")
-        self.file_path = config["DEFAULT"]["file_path"]
-        self.backups_dir = os.path.join(
+        self._file_path = config["DEFAULT"]["file_path"]
+        self._backups_dir = os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
             config["DEFAULT"]["backup_file_path"],
         )
-        self.num_backups = int(config["DEFAULT"].get("num_backups_to_keep", 10))
-        self.indexes_filename = config["DEFAULT"]["date_index_filename"]
-        self.lines = []
-        self.indexes = {}
+        self._num_backups = int(config["DEFAULT"].get("num_backups_to_keep", "10"))
+        self._indexes_filename = config["DEFAULT"]["date_index_filename"]
         self.is_save_index = config["DEFAULT"]["save_index"]
 
-        self._load_and_index_file()
+        self._lines, self._indexes = self._load_and_index_file()
+
+    @property
+    def lines(self):
+        return self._lines
+
+    @property
+    def date_indexes(self):
+        return self._indexes.get(constants.DATE_INDEXES_KEY) or {}
+
+    @property
+    def todo_indexes(self):
+        return self._indexes.get(constants.TASK_INDEXES_KEY) or []
 
     def _load_and_index_file(self):
         try:
-            with open(self.file_path, "r") as f:
+            with open(self._file_path, "r") as f:
                 lines = f.readlines()
-        except FileNotFoundError as e:
-            print(f"File not found: {self.file_path}")
+        except FileNotFoundError:
+            print(f"File not found: {self._file_path}")
             sys.exit(1)
-        except PermissionError as e:
-            print(f"Permission denied: {self.file_path}")
+        except PermissionError:
+            print(f"Permission denied: {self._file_path}")
             sys.exit(1)
-        except IsADirectoryError as e:
-            print(f"{self.file_path} is a directory, not a file.")
+        except IsADirectoryError:
+            print(f"{self._file_path} is a directory, not a file.")
             sys.exit(1)
         except IOError as e:
             print(f"An error occurred while reading the file: {e}")
@@ -46,27 +55,29 @@ class FileProcessor:
             print(f"An unexpected error occurred: {e}")
             sys.exit(1)
 
-        if self.is_save_index:
-            if self._is_updated():
-                self._index_file(lines)
-            else:
-                self._load_indexes()
-            self.lines = lines
+        if self._is_updated():
+            indexes = self._index_file(lines)
+        else:
+            indexes = self._load_indexes()
+
+        return lines, indexes
 
     def _load_indexes(self):
         try:
-            with open(self.indexes_filename, "rb") as f:
-                self.indexes = pickle.load(f)
+            with open(self._indexes_filename, "rb") as f:
+                indexes = pickle.load(f)
         except FileNotFoundError:
             raise FileNotFoundError(
-                f"Index file '{self.indexes_filename}' not found"
+                f"Index file '{self._indexes_filename}' not found"
             )
 
+        return indexes
+
     def _is_updated(self):
-        if not os.path.exists(self.indexes_filename):
+        if not os.path.exists(self._indexes_filename):
             return True
-        return os.path.getmtime(self.file_path) > os.path.getmtime(
-            self.indexes_filename
+        return os.path.getmtime(self._file_path) > os.path.getmtime(
+            self._indexes_filename
         )
 
     def _index_file(self, lines: List[str]):
@@ -107,10 +118,10 @@ class FileProcessor:
         indexes[constants.DATE_INDEXES_KEY][previous_date] = (section_start_index, i)
 
         if self.is_save_index:
-            with open(self.indexes_filename, "wb") as file_object:
+            with open(self._indexes_filename, "wb") as file_object:
                 pickle.dump(indexes, file_object, protocol=pickle.HIGHEST_PROTOCOL)
 
-        self.indexes = indexes
+        return indexes
 
     def _backup_file(self):
         """
@@ -123,52 +134,47 @@ class FileProcessor:
         """
         timestamp = str(int(time.time()))
 
-        if not os.path.exists(self.backups_dir):
-            os.makedirs(self.backups_dir)
+        if not os.path.exists(self._backups_dir):
+            os.makedirs(self._backups_dir)
 
         shutil.copy(
-            self.file_path,
+            self._file_path,
             os.path.join(
-                self.backups_dir, os.path.basename(self.file_path) + "." + timestamp
+                self._backups_dir, os.path.basename(self._file_path) + "." + timestamp
             ),
         )
 
         backups = [
             f
-            for f in os.listdir(self.backups_dir)
-            if f.startswith(os.path.basename(self.file_path) + ".")
+            for f in os.listdir(self._backups_dir)
+            if f.startswith(os.path.basename(self._file_path) + ".")
         ]
 
         backups.sort(key=lambda x: int(x.split(".")[-1]), reverse=True)
 
-        for backup in backups[self.num_backups:]:
-            os.remove(os.path.join(self.backups_dir, backup))
+        for backup in backups[self._num_backups:]:
+            os.remove(os.path.join(self._backups_dir, backup))
 
     def get_date_indexes(self):
-        return self.indexes.get(constants.DATE_INDEXES_KEY) or {}
+        return self._indexes.get(constants.DATE_INDEXES_KEY) or {}
 
     def get_task_indexes(self):
-        return self.indexes.get(constants.TASK_INDEXES_KEY) or {}
+        return self._indexes.get(constants.TASK_INDEXES_KEY) or {}
 
-    def process_file(
-            self,
-            line_processor: Callable,
-            *args,
-            **kwargs,
-    ):
-        processed_lines = line_processor(self.lines, *args, **kwargs)
+    @property
+    def get_lines(self):
+        return self._lines or None
+
+    def process_file(self, line_processor: Callable, *args, **kwargs,):
+        processed_lines = line_processor(self._lines, *args, **kwargs)
         if processed_lines is not None:
             self._backup_file()
             try:
-                with open(self.file_path, "w") as f:
+                with open(self._file_path, "w") as f:
                     f.seek(0)
                     f.write("".join(processed_lines))
                 self._index_file(processed_lines)
             except Exception as e:
-                most_recent_backup = max(
-                    os.listdir(self.backups_dir), key=lambda x: os.path.getctime(x)
-                )
-                shutil.copy2(
-                    most_recent_backup, self.file_path
-                )  # Restore the most recent backup
-                raise e  # Raise the original exception
+                most_recent_backup = max(os.listdir(self._backups_dir), key=lambda x: os.path.getctime(x))
+                shutil.copy2(most_recent_backup, self._file_path)
+                raise e
