@@ -56,8 +56,6 @@
 # 2023-02-05 Sunday
 
 - test test test12344370012
-- test test test12344370012
-- test test test12344370012
 
 # 2023-02-06 Monday
 
@@ -66,18 +64,10 @@
 # 2023-02-07 Tuesday
 
 - [ ] test_indexing
-- [ ] test
-- [ ] test
-- [ ] test
-- [ ] test
 
 # 2023-02-09 Thursday 
 
 - test
-- test
-- [ ] test
-- [ ] test
-- [ ] test
 - The text is derived from Latin, but does not have any coherent meaning in itself.
 - The use of placeholder text can be useful in design because it allows the designer to focus on the visual aspects of the layout without getting distracted by the content.
 
@@ -86,7 +76,6 @@
 
 - The text is derived from Latin, but does not have any coherent meaning in itself.
 - The use of placeholder text can be useful in design because it allows the designer to focus on the visual aspects of the layout without getting distracted by the content.
-- [ ] test
 - [ ] test
   psum dolor sit amet, consectetur adipiscing elit. Fusce ut orci metus.
   Sed vitae leo
@@ -105,15 +94,15 @@ Some key points to note about this text:
 - The text is derived from Latin, but does not have any coherent meaning in itself.
 - The use of placeholder text can be useful in design because it allows the designer to focus on the visual aspects of the layout without getting distracted by the content.
 - However, it's important to remember that real content will eventually need to be inserted, and that the layout may need to be adjusted accordingly.- [ ] test
-- [ ] test
-- [ ] test test 123
-- [ ] test test 123
-- [ ] test test 123
 
+# 2023-02-12 Sunday
 
-- [ ] test test 123
-- [ ] test test 123
-- [ ] test test 123
+- test
+- [ ] todo item
+Hello world!
+- test
+- 
 
-# 2023-02-12 Sunday 
+# 2023-02-13 Monday
 
+# 2023-02-14 Tuesday

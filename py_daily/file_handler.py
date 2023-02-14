@@ -8,7 +8,16 @@ from typing import List, Callable
 from py_daily import constants
 
 
-class FileProcessor:
+class Singleton(type):
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super().__call__(*args, **kwargs)
+        return cls._instances[cls]
+
+
+class FileHandler(metaclass=Singleton):
     def __init__(self) -> None:
         config = configparser.ConfigParser()
         config.read("config.ini")
@@ -67,9 +76,7 @@ class FileProcessor:
             with open(self._indexes_filename, "rb") as f:
                 indexes = pickle.load(f)
         except FileNotFoundError:
-            raise FileNotFoundError(
-                f"Index file '{self._indexes_filename}' not found"
-            )
+            raise FileNotFoundError(f"Index file '{self._indexes_filename}' not found")
 
         return indexes
 
@@ -97,10 +104,7 @@ class FileProcessor:
         if not lines or not lines[0].startswith("#"):
             raise ValueError("The first line must start with '#'")
 
-        indexes = {
-            constants.DATE_INDEXES_KEY: {},
-            constants.TASK_INDEXES_KEY: []
-        }
+        indexes = {constants.DATE_INDEXES_KEY: {}, constants.TASK_INDEXES_KEY: []}
 
         # Loop through the lines to find the section headers and store the indices
         section_start_index = 0
@@ -109,13 +113,20 @@ class FileProcessor:
             if not line or not line.strip():
                 continue
             if line.startswith("#"):
-                indexes[constants.DATE_INDEXES_KEY][previous_date] = (section_start_index, i - 1)
+                indexes[constants.DATE_INDEXES_KEY][previous_date] = (
+                    section_start_index,
+                    i,
+                )
                 section_start_index = i
                 previous_date = line[2:12]
             if line.startswith(constants.TODO):
                 indexes[constants.TASK_INDEXES_KEY].append(i)
 
-        indexes[constants.DATE_INDEXES_KEY][previous_date] = (section_start_index, i)
+        # Add code to handle the last section
+        indexes[constants.DATE_INDEXES_KEY][previous_date] = (
+            section_start_index,
+            i + 1,
+        )
 
         if self.is_save_index:
             with open(self._indexes_filename, "wb") as file_object:
@@ -152,29 +163,29 @@ class FileProcessor:
 
         backups.sort(key=lambda x: int(x.split(".")[-1]), reverse=True)
 
-        for backup in backups[self._num_backups:]:
+        for backup in backups[self._num_backups :]:
             os.remove(os.path.join(self._backups_dir, backup))
 
-    def get_date_indexes(self):
-        return self._indexes.get(constants.DATE_INDEXES_KEY) or {}
+    def clear_index_cache(self):
+        try:
+            os.remove(self._indexes_filename)
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            print(f"An unexpected error occurred while deleting the cache: {e}")
 
-    def get_task_indexes(self):
-        return self._indexes.get(constants.TASK_INDEXES_KEY) or {}
-
-    @property
-    def get_lines(self):
-        return self._lines or None
-
-    def process_file(self, line_processor: Callable, *args, **kwargs,):
-        processed_lines = line_processor(self._lines, *args, **kwargs)
-        if processed_lines is not None:
+    def write_to_file(self, lines_to_write: list[str]):
+        # processed_lines = line_processor(self._lines, *args, **kwargs)
+        if lines_to_write is not None:
             self._backup_file()
             try:
                 with open(self._file_path, "w") as f:
                     f.seek(0)
-                    f.write("".join(processed_lines))
-                self._index_file(processed_lines)
+                    f.write("".join(lines_to_write))
+                self._index_file(lines_to_write)
             except Exception as e:
-                most_recent_backup = max(os.listdir(self._backups_dir), key=lambda x: os.path.getctime(x))
+                most_recent_backup = max(
+                    os.listdir(self._backups_dir), key=lambda x: os.path.getctime(x)
+                )
                 shutil.copy2(most_recent_backup, self._file_path)
                 raise e

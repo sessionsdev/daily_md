@@ -39,13 +39,13 @@ def py_daily_parser():
         core.handle_todo_args(args.todo)
     elif args.migrate:
         # Handle the -m or --migrate option
+        core.handle_migrate(args.migrate)
         print("Migrating past uncompleted to-do items to today's section.")
     elif args.complete:
         # Handle the -c or --complete option with argument "some text"
         print(f"Marking item as complete: {args.complete}")
     elif args.print:
-        print("Displaying help message.")
-        core.handle_print_args(print_args=args.print)
+        core.handle_print_args(args.print)
     else:
         # Handle the -h or --help option
         print("Displaying help message.")
