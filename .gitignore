@@ -4,3 +4,6 @@
 /env
 .idea
 *.pyc
+dist/
+py_daily.egg-info
+build

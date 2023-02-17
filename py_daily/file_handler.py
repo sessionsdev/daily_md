@@ -1,11 +1,10 @@
-import configparser
 import os
 import pickle
 import shutil
 import sys
 import time
-from typing import List, Callable
 from py_daily import constants
+from py_daily.config import config
 
 
 class Singleton(type):
@@ -19,16 +18,14 @@ class Singleton(type):
 
 class FileHandler(metaclass=Singleton):
     def __init__(self) -> None:
-        config = configparser.ConfigParser()
-        config.read("config.ini")
-        self._file_path = config["DEFAULT"]["file_path"]
+        self._file_path = config.get_value("options", "file_path")
         self._backups_dir = os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
-            config["DEFAULT"]["backup_file_path"],
+            config.get_value("options", "backup_dir"),
         )
-        self._num_backups = int(config["DEFAULT"].get("num_backups_to_keep", "10"))
-        self._indexes_filename = config["DEFAULT"]["date_index_filename"]
-        self.is_save_index = config["DEFAULT"]["save_index"]
+        self._num_backups = int(config.get_value("options", "num_backups"))
+        self._indexes_filename = os.path.join(os.path.dirname(__file__), 'indexes.pickle')
+        self.is_save_index = config.get_value("options", "save_indexes")
 
         self._lines, self._indexes = self._load_and_index_file()
 
@@ -87,7 +84,7 @@ class FileHandler(metaclass=Singleton):
             self._indexes_filename
         )
 
-    def _index_file(self, lines: List[str]):
+    def _index_file(self, lines: list[str]):
         """
         Indexes a file with date headers and returns a dictionary of the indices of each section. The first line must
         start with "#". The indexed data is stored in a pickle file with the name `self.date_index_filename`.

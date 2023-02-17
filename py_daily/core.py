@@ -1,22 +1,12 @@
-import configparser
-import os
-import pickle
-import re
-import shutil
-import sys
-import time
-import logging
 from datetime import datetime
-from typing import Callable, List, Pattern, Tuple, Dict, Union
-from py_daily import file_handler, constants, line_handlers
+from py_daily import constants, line_handlers
 
 today_full_date: str = datetime.now().strftime("%Y-%m-%d %A")
 today: str = datetime.now().strftime("%Y-%m-%d")
-file_handler = file_handler.FileHandler()
 line_handler = line_handlers.LineHandler()
 
 
-def insert_header_today(lines: List[str]) -> List[str]:
+def insert_header_today(lines: list[str]) -> list[str]:
     header: str = f"# {today_full_date}"
     if not lines or lines[-1].strip():
         lines.append("\n")
@@ -25,7 +15,7 @@ def insert_header_today(lines: List[str]) -> List[str]:
     return lines
 
 
-def get_or_create_today_header_index(lines: List[str]) -> int:
+def get_or_create_today_header_index(lines: list[str]) -> int:
     header = f"# {today_full_date}\n"
     for index, line in enumerate(lines):
         if line.startswith(header):
@@ -41,11 +31,11 @@ def print_header(header_text):
     print("+" + "-" * header_length + "+")
 
 
-def gather_incomplete_task_indices(lines: List[str]) -> List[int]:
+def gather_incomplete_task_indices(lines: list[str]) -> list[int]:
     return [index for index, line in enumerate(lines) if line.startswith("- [ ]")]
 
 
-def print_section(lines: List[str]) -> None:
+def print_section(lines: list[str]) -> None:
     separator = "\n-----------------------------------------\n"
     print(separator, end="")
     for line in lines:
