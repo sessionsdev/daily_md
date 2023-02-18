@@ -4,8 +4,8 @@ import shutil
 import sys
 import time
 
-from py_daily.config import config
-from py_daily.constants import (
+from daily_md.config import config
+from daily_md.constants import (
     BACKUPS_DIR,
     DATE_INDEXES_KEY,
     INDEXES_FILENAME,

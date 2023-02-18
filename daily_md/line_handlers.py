@@ -1,9 +1,9 @@
 import re
 from datetime import datetime
 
-from py_daily.constants import COMPLETED_TODO, MIGRATED_TODO, TODO
-from py_daily.exceptions import DateHeaderNotFoundError
-from py_daily.file_handler import FileHandler
+from daily_md.constants import COMPLETED_TODO, MIGRATED_TODO, TODO
+from daily_md.exceptions import DateHeaderNotFoundError
+from daily_md.file_handler import FileHandler
 
 
 class LineHandler:

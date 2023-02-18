@@ -1,8 +1,8 @@
 from datetime import datetime
 
-from py_daily import line_handlers
-from py_daily.config import config
-from py_daily.constants import TODO
+from daily_md import line_handlers
+from daily_md.config import config
+from daily_md.constants import TODO
 
 today_full_date: str = datetime.now().strftime("%Y-%m-%d %A")
 today: str = datetime.now().strftime("%Y-%m-%d")

@@ -2,7 +2,7 @@ import configparser
 import os
 import readline
 
-from py_daily.constants import CONFIG_FILE_PATH
+from daily_md.constants import CONFIG_FILE_PATH
 
 
 def initialize_config():

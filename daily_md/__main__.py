@@ -1,8 +1,8 @@
 import argparse
 
-from py_daily import *
-from py_daily import core
-from py_daily.initialize_config import initialize_config
+from daily_md import *
+from daily_md import core
+from daily_md.initialize_config import initialize_config
 
 
 def cli():

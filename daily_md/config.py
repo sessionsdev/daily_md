@@ -1,7 +1,7 @@
 import configparser
 import os
 
-from py_daily.constants import CONFIG_FILE_PATH
+from daily_md.constants import CONFIG_FILE_PATH
 
 
 class Config:

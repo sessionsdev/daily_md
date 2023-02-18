@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-      name='py_daily',
+      name='daily_md',
       version='0.1.0',
       packages=find_packages(),
       install_requires=[
@@ -9,7 +9,7 @@ setup(
       ],
       entry_points={
             'console_scripts': [
-                  'py_daily=py_daily.__main__:cli',
+                  'daily_md=daily_md.__main__:cli',
             ],
       },
 )
