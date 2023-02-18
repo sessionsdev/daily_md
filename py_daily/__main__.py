@@ -1,14 +1,19 @@
 import argparse
 
-from py_daily import core
-from py_daily import initialize_config
 from py_daily import *
+from py_daily import core
+from py_daily.initialize_config import initialize_config
 
 
 def cli():
     parser = argparse.ArgumentParser(description="Process some options.")
     group = parser.add_mutually_exclusive_group()
-    group.add_argument("--config", dest="config", action="store_true", help="Configure the daily script.")
+    group.add_argument(
+        "--config",
+        dest="config",
+        action="store_true",
+        help="Configure the daily script.",
+    )
     group.add_argument("-l", "--log", dest="log", help="Log an entry")
     group.add_argument("-t", "--todo", dest="todo", help="Add a to-do item")
     group.add_argument(
@@ -49,7 +54,7 @@ def cli():
     elif args.print:
         core.handle_print_args(args.print)
     elif args.config:
-        initialize_config.initialize_config()
+        initialize_config()
     else:
         # Handle the -h or --help option
         print("Displaying help message.")

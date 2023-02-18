@@ -3,8 +3,15 @@ import pickle
 import shutil
 import sys
 import time
-from py_daily import constants
+
 from py_daily.config import config
+from py_daily.constants import (
+    BACKUPS_DIR,
+    DATE_INDEXES_KEY,
+    INDEXES_FILENAME,
+    TASK_INDEXES_KEY,
+    TODO,
+)
 
 
 class Singleton(type):
@@ -19,13 +26,10 @@ class Singleton(type):
 class FileHandler(metaclass=Singleton):
     def __init__(self) -> None:
         self._file_path = config.get_value("options", "file_path")
-        self._backups_dir = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            config.get_value("options", "backup_dir"),
-        )
         self._num_backups = int(config.get_value("options", "num_backups"))
-        self._indexes_filename = os.path.join(os.path.dirname(__file__), 'indexes.pickle')
         self.is_save_index = config.get_value("options", "save_indexes")
+        self._backups_dir = BACKUPS_DIR
+        self._indexes_filename = INDEXES_FILENAME
 
         self._lines, self._indexes = self._load_and_index_file()
 
@@ -35,11 +39,11 @@ class FileHandler(metaclass=Singleton):
 
     @property
     def date_indexes(self):
-        return self._indexes.get(constants.DATE_INDEXES_KEY) or {}
+        return self._indexes.get(DATE_INDEXES_KEY) or {}
 
     @property
     def todo_indexes(self):
-        return self._indexes.get(constants.TASK_INDEXES_KEY) or []
+        return self._indexes.get(TASK_INDEXES_KEY) or []
 
     def _load_and_index_file(self):
         try:
@@ -101,7 +105,7 @@ class FileHandler(metaclass=Singleton):
         if not lines or not lines[0].startswith("#"):
             raise ValueError("The first line must start with '#'")
 
-        indexes = {constants.DATE_INDEXES_KEY: {}, constants.TASK_INDEXES_KEY: []}
+        indexes = {DATE_INDEXES_KEY: {}, TASK_INDEXES_KEY: []}
 
         # Loop through the lines to find the section headers and store the indices
         section_start_index = 0
@@ -110,17 +114,17 @@ class FileHandler(metaclass=Singleton):
             if not line or not line.strip():
                 continue
             if line.startswith("#"):
-                indexes[constants.DATE_INDEXES_KEY][previous_date] = (
+                indexes[DATE_INDEXES_KEY][previous_date] = (
                     section_start_index,
                     i,
                 )
                 section_start_index = i
                 previous_date = line[2:12]
-            if line.startswith(constants.TODO):
-                indexes[constants.TASK_INDEXES_KEY].append(i)
+            if line.startswith(TODO):
+                indexes[TASK_INDEXES_KEY].append(i)
 
         # Add code to handle the last section
-        indexes[constants.DATE_INDEXES_KEY][previous_date] = (
+        indexes[DATE_INDEXES_KEY][previous_date] = (
             section_start_index,
             i + 1,
         )

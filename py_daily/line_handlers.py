@@ -1,10 +1,9 @@
+import re
 from datetime import datetime
 
-import re
-
-from py_daily import file_handler
-from py_daily import constants
+from py_daily.constants import COMPLETED_TODO, MIGRATED_TODO, TODO
 from py_daily.exceptions import DateHeaderNotFoundError
+from py_daily.file_handler import FileHandler
 
 
 class LineHandler:
@@ -13,23 +12,24 @@ class LineHandler:
 
     def get_file_handler(self):
         if self._file_handler is None:
-            self._file_handler = file_handler.FileHandler()
+            self._file_handler = FileHandler()
         return self._file_handler
 
     def create_header_today(self):
         now = datetime.now()
         today_full = now.strftime("%Y-%m-%d %A")
         header = f"# {today_full}\n"
+        file_handler = self.get_file_handler()
 
-        lines = self.get_file_handler().lines
+        lines = file_handler.lines
 
-        if not self.get_file_handler().date_indexes.get(now.strftime("%Y-%m-%d")):
+        if not file_handler.date_indexes.get(now.strftime("%Y-%m-%d")):
             if not lines or lines[-1] != "\n":
                 lines.append("\n")
             lines.append(header)
 
         if lines:
-            self.get_file_handler().write_to_file(lines)
+            file_handler.write_to_file(lines)
             print(f"Header for {today_full} successfully created!")
 
     def append_text_today(self, text: str) -> list[str] or None:
@@ -59,7 +59,6 @@ class LineHandler:
                 date, (None, None)
             )
             start, end = section_indexes
-            print(section_indexes)
             if start is None or end is None:
                 continue
             result[date] = self.get_file_handler().lines[start:end]
@@ -77,7 +76,19 @@ class LineHandler:
         return lines_by_date.get(date, [])
 
     def get_todo_lines(self):
-        return [self.get_file_handler().lines[i] for i in self.get_file_handler().todo_indexes]
+        return [
+            self.get_file_handler().lines[i]
+            for i in self.get_file_handler().todo_indexes
+        ]
+
+    def complete_todos(self, indexes_to_complete: list[int]):
+        file_handler = self.get_file_handler()
+
+        lines = file_handler.lines
+        for index in indexes_to_complete:
+            lines[index] = lines[index].replace(TODO, COMPLETED_TODO, 1)
+
+        file_handler.write_to_file(lines)
 
     def migrate_tasks_to_date(self, date: str):
         start, end = self.get_file_handler().date_indexes.get(date, (None, None))
@@ -94,8 +105,8 @@ class LineHandler:
         for i in reversed(todo_indexes):
             if i < start or i > end:
                 line = lines[i]
-                if line.startswith(constants.TODO):
-                    lines[i] = line.replace(constants.TODO, constants.MIGRATED_TODO, 1)
+                if line.startswith(TODO):
+                    lines[i] = line.replace(TODO, MIGRATED_TODO, 1)
                     lines.insert(end + 1, line)
 
         self.get_file_handler().write_to_file(lines)

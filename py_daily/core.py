@@ -1,27 +1,12 @@
 from datetime import datetime
-from py_daily import constants, line_handlers
+
+from py_daily import line_handlers
+from py_daily.config import config
+from py_daily.constants import TODO
 
 today_full_date: str = datetime.now().strftime("%Y-%m-%d %A")
 today: str = datetime.now().strftime("%Y-%m-%d")
 line_handler = line_handlers.LineHandler()
-
-
-def insert_header_today(lines: list[str]) -> list[str]:
-    header: str = f"# {today_full_date}"
-    if not lines or lines[-1].strip():
-        lines.append("\n")
-    lines.append(header + " \n")
-    lines.append("\n")
-    return lines
-
-
-def get_or_create_today_header_index(lines: list[str]) -> int:
-    header = f"# {today_full_date}\n"
-    for index, line in enumerate(lines):
-        if line.startswith(header):
-            return index
-    lines = insert_header_today(lines)
-    return len(lines) - 1
 
 
 def print_header(header_text):
@@ -29,10 +14,6 @@ def print_header(header_text):
     print("+" + "-" * header_length + "+")
     print("|    " + header_text + "    |")
     print("+" + "-" * header_length + "+")
-
-
-def gather_incomplete_task_indices(lines: list[str]) -> list[int]:
-    return [index for index, line in enumerate(lines) if line.startswith("- [ ]")]
 
 
 def print_section(lines: list[str]) -> None:
@@ -44,7 +25,7 @@ def print_section(lines: list[str]) -> None:
 
 
 def handle_todo_args(todo_args):
-    todo = f"{constants.TODO} {todo_args}\n"
+    todo = f"{TODO} {todo_args}\n"
     line_handler.append_text_today(todo)
 
 
@@ -65,8 +46,16 @@ def handle_print_args(print_args):
         else:
             prompt_header_creation()
     elif print_args == "todo":
+        print_header("TODO LIST")
         lines = line_handler.get_todo_lines()
         print("".join(lines))
+    elif print_args == "config":
+        print_header("CONFIG VALUES")
+        print()
+        values = config.get_all_values()
+        for name, value in values.items():
+            print(f"{name}: {value}")
+        print()
     else:
         date_pattern = expand_date_pattern(print_args) or None
         if date_pattern is None:
