@@ -51,7 +51,13 @@ class FileHandler(metaclass=Singleton):
                 lines = f.readlines()
         except FileNotFoundError:
             print(f"File not found: {self._file_path}")
-            sys.exit(1)
+            create_file = input("Do you want to create the file? (y/n): ")
+            if create_file.lower() == "y":
+                with open(self._file_path, "w") as f:
+                    f.write("")
+                lines = []
+            else:
+                sys.exit(1)
         except PermissionError:
             print(f"Permission denied: {self._file_path}")
             sys.exit(1)

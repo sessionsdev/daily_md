@@ -34,7 +34,8 @@ def handle_log_args(log_args):
     line_handler.append_text_today(log)
 
 
-def handle_migrate(migrate_args):
+def handle_migrate():
+    print("Migrating past uncompleted to-do items to today's entry.")
     line_handler.migrate_tasks_to_date(today)
 
 
@@ -74,6 +75,14 @@ def prompt_header_creation():
     else:
         return
 
+def complete_todos():
+    lines = line_handler.get_file_handler().lines
+    todo_indexes = line_handler.get_file_handler().todo_indexes
+
+
+
+    for i, todo_index in enumerate(todo_indexes, start=1):
+        print(i, lines[todo_index])
 
 def expand_date_pattern(pattern: str) -> str:
     year_pattern = r"(?P<year>\d{4})"

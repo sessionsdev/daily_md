@@ -102,6 +102,7 @@ Some key points to note about this text:
 Hello world!
 - test
 - 
+- test
 
 # 2023-02-13 Monday
 
@@ -117,3 +118,7 @@ Hello world!
 - [ ] test 123
 
 # 2023-02-17 Friday
+
+# 2023-02-19 Sunday
+- [ ] test
+- [ ] test

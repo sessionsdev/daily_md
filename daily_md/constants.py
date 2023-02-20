@@ -5,6 +5,10 @@ COMPLETED_TODO = "- [x]"
 MIGRATED_TODO = "- [>]"
 DATE_INDEXES_KEY = "date_indexes"
 TASK_INDEXES_KEY = "incomplete_task_indexes"
-CONFIG_FILE_PATH = os.path.join(os.path.dirname(__file__), "config.ini")
-BACKUPS_DIR = os.path.join(os.path.dirname(__file__), "backups")
-INDEXES_FILENAME = os.path.join(os.path.dirname(__file__), "indexes.pickle")
+
+DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
+os.makedirs(DATA_DIR, exist_ok=True)
+
+CONFIG_FILE_PATH = os.path.join(DATA_DIR, "config.ini")
+BACKUPS_DIR = os.path.join(DATA_DIR, "backups")
+INDEXES_FILENAME = os.path.join(DATA_DIR, "indexes.pickle")

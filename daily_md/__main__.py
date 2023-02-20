@@ -24,7 +24,7 @@ def cli():
         help="Migrate past uncompleted todo items to today's section",
     )
     group.add_argument(
-        "-c", "--complete", dest="complete", help="Mark an item as complete"
+        "-c", "--complete", dest="complete", action="store_true", help="Mark an item as complete"
     )
     parser.add_argument(
         "-p",
@@ -39,25 +39,19 @@ def cli():
     args = parser.parse_args()
 
     if args.log:
-        # Handle the -l option
         core.handle_log_args(args.log)
     elif args.todo:
-        # Handle the -t option
         core.handle_todo_args(args.todo)
     elif args.migrate:
-        # Handle the -m or --migrate option
-        core.handle_migrate(args.migrate)
-        print("Migrating past uncompleted to-do items to today's section.")
+        core.handle_migrate()
     elif args.complete:
-        # Handle the -c or --complete option with argument "some text"
-        print(f"Marking item as complete: {args.complete}")
+        core.complete_todos()
     elif args.print:
         core.handle_print_args(args.print)
     elif args.config:
         initialize_config()
     else:
-        # Handle the -h or --help option
-        print("Displaying help message.")
+        core.handle_print_args("default")
 
 
 if __name__ == "__main__":
