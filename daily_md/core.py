@@ -17,10 +17,11 @@ def print_header(header_text):
 
 
 def print_section(lines: list[str]) -> None:
-    separator = "\n-----------------------------------------\n"
-    print(separator, end="")
+    separator = "-----------------------------------------"
+    print(separator)
     for line in lines:
-        print(line, end="")
+        if line.strip():
+            print(line, end="\n")
     print(separator)
 
 
@@ -75,14 +76,14 @@ def prompt_header_creation():
     else:
         return
 
+
 def complete_todos():
     lines = line_handler.get_file_handler().lines
     todo_indexes = line_handler.get_file_handler().todo_indexes
 
-
-
     for i, todo_index in enumerate(todo_indexes, start=1):
         print(i, lines[todo_index])
+
 
 def expand_date_pattern(pattern: str) -> str:
     year_pattern = r"(?P<year>\d{4})"

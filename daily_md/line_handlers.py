@@ -27,6 +27,7 @@ class LineHandler:
             if not lines or lines[-1] != "\n":
                 lines.append("\n")
             lines.append(header)
+            lines.append("\n")
 
         if lines:
             file_handler.write_to_file(lines)
